@@ -6,6 +6,7 @@ import { useFinancialSoul } from "@/hooks/useFinancialSoul";
 import { ConscienceModal } from "./ConscienceModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useInsights } from "@/hooks/useInsights";
+import { vibrate } from "@/lib/haptics";
 
 const CATEGORIES = [
     "Food",
