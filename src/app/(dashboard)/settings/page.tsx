@@ -132,7 +132,7 @@ export default function SettingsPage() {
                             Align your monthly budget with your Payday or Billing Cycle.
                         </p>
 
-                        <div className="mt-4 flex items-center gap-4">
+                        <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
                             <div className="relative">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Start Day</label>
                                 <input

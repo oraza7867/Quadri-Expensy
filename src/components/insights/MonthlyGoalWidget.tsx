@@ -83,7 +83,7 @@ export function MonthlyGoalWidget({ totalSpent, cycleLabel }: MonthlyGoalWidgetP
                         Monthly Goal
                     </h2>
                     {cycleLabel && (
-                        <p className="text-xs font-medium text-indigo-600 ml-7 mt-0.5">
+                        <p className="text-xs font-medium text-indigo-600 mt-1 pl-7 sm:pl-0">
                             {cycleLabel}
                         </p>
                     )}
