@@ -224,6 +224,7 @@ export function useInsights() {
         insights,
         loading,
         addBudget,
-        deleteBudget
+        deleteBudget,
+        cycleRangeLabel
     };
 }
