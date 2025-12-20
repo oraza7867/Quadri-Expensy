@@ -31,33 +31,54 @@ export function useFinancialSoul(expenses: any[] = [], totalSpentProp: number = 
 
     let contextPenalty = 0;
 
-    // Rule: Over Total Budget (-65)
-    // KILL SWITCH: If you are over budget, you CANNOT be in "Zen" or "Observing".
-    // Even if Base Trust is 100 (Max), this penalty drops you to 35 (Disappointed).
-    // 100 - 65 = 35.
-    // This satisfies the strict requirement: "If spent > budget, system CANNOT remain gentle".
-    if (budget > 0 && totalSpent > budget) {
-        contextPenalty += 65;
+    // -------------------------------------------
+    // REFACTOR: Proportional Decay Logic
+    // -------------------------------------------
+
+    // 1. Budget Health Penalties
+    if (budget > 0) {
+        const usageRatio = totalSpent / budget;
+
+        if (usageRatio > 1.10) {
+            // > 110% Used: CRASH (-65)
+            // Result: 80 - 65 = 15 (Disappointed)
+            contextPenalty += 65;
+        } else if (usageRatio > 1.0) {
+            // 100% - 110% Used: GRACE PERIOD (-25)
+            // Result: 80 - 25 = 55 (Observing)
+            contextPenalty += 25;
+        } else if (usageRatio > 0.90) {
+            // 90% - 100% Used: ANXIETY (-10)
+            // Result: 80 - 10 = 70 (Zen/Observing Border)
+            contextPenalty += 10;
+        }
+
+        // 2. Category Fatigue (Putting all eggs in one basket)
+        // If one category uses > 50% of budget AND we are nearly full (>80% used)
+        if (usageRatio > 0.80) {
+            const categoryTotals: Record<string, number> = {};
+            expenses.forEach(e => {
+                const amount = Number(e.amount) || 0;
+                categoryTotals[e.category] = (categoryTotals[e.category] || 0) + amount;
+            });
+
+            const maxCategorySpend = Math.max(...Object.values(categoryTotals));
+            if (maxCategorySpend > (budget * 0.50)) {
+                contextPenalty += 5; // "Diversify!"
+            }
+        }
     }
 
-    // Rule: Risky Spend (-20)
-    // Adjusted from -10 to -20.
-    // If Over Budget, this ALWAYS triggers (Broke = Risky).
-    // Total Penalty = -30 + -20 = -50.
-    // Result: 80 - 50 = 30 (Disappointed).
-    // Interpretation: 
-    // - If Over Budget, remaining is <= 0. Thus ANY expense > 0 is Risky.
-    // - If Under Budget, remaining is positive. Threshold = 30% of Remaining.
-    if (budget > 0) {
+    // 3. Risky Spend (Legacy Rule, preserved but tuned)
+    // If Over Budget, we already applied heavy penalties above.
+    // If Under Budget, we still check for massive single purchases.
+    if (budget > 0 && totalSpent <= budget) {
         const remaining = Math.max(0, budget - totalSpent);
-        const riskyThreshold = remaining * 0.30;
+        const riskyThreshold = remaining * 0.40; // Relaxed to 40% of remaining
 
-        // If remaining is 0 (Over Budget), threshold is 0. All +ve expenses are risky.
-        // If remaining is high, threshold is high.
         const hasRiskySpend = expenses.some(e => Number(e.amount) > riskyThreshold);
-
         if (hasRiskySpend) {
-            contextPenalty += 20;
+            contextPenalty += 10; // Warning for impulse buys
         }
     }
 
