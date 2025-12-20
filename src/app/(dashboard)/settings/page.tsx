@@ -84,9 +84,9 @@ export default function SettingsPage() {
         setDeleting(true);
         try {
             await deleteAccount();
+            window.location.href = "/login"; // Force full reload to clear any cached states
         } catch (error: any) {
             alert("Failed to delete account. You may need to re-login first. Error: " + error.message);
-        } finally {
             setDeleting(false);
         }
     };
