@@ -11,7 +11,7 @@ import {
     deleteDoc,
     doc
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getExpensyDb } from "@/lib/firebase";
 import { useAuth } from "./useAuth";
 import { getCycleRange } from "@/lib/dateUtils";
 import { subMonths } from "date-fns";
@@ -33,6 +33,7 @@ import { formatCycleRange } from "@/lib/dateUtils";
 // ... existing imports
 
 export function useInsights() {
+    const db = getExpensyDb();
     const { user, profile: userProfile } = useAuth();
 
     // 1. Calculate Cycle Ranges for UI Label
@@ -60,16 +61,11 @@ export function useInsights() {
         const currentCycle = getCycleRange(now, resetDay);
         setCycleRangeLabel(formatCycleRange(currentCycle));
 
-        // For last cycle, we look back from before the current start
-        // Safe bet: subtract 15 days from current start to land in previous cycle
-        const lastCycleDate = subMonths(currentCycle.start, 0); // Wait, subMonths(start, 1) is safer?
-        // Actually, let's just use the previous month of 'now' logic from dateUtils? 
-        // No, best is to subtract 1 ms from current start to get end of previous, then query range.
-        // But let's use getCycleRange on a date definitely in the past.
-        const prevDate = new Date(currentCycle.start.getTime() - (1000 * 60 * 60 * 24 * 5)); // 5 days before start
+        // For last cycle
+        const prevDate = new Date(currentCycle.start.getTime() - (1000 * 60 * 60 * 24 * 5));
         const lastCycle = getCycleRange(prevDate, resetDay);
 
-        // Fetch Current Cycle Expenses
+        // A. Fetch Current Cycle Expenses
         const qExpenses = query(
             collection(db, "expenses"),
             where("uid", "==", user.uid),
@@ -77,6 +73,16 @@ export function useInsights() {
             where("date", "<=", Timestamp.fromDate(currentCycle.end))
         );
 
+        const unsubExpenses = onSnapshot(qExpenses, (snap) => {
+            const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+            setCurrentMonthExpenses(docs);
+            setLoading(false); // Widget Data Ready
+        }, (error) => {
+            console.error("Insights Main Error:", error);
+            setLoading(false); // Unblock UI even if fail
+        });
+
+        // B. Fetch Last Month (For comparison)
         const qLastMonth = query(
             collection(db, "expenses"),
             where("uid", "==", user.uid),
@@ -84,23 +90,14 @@ export function useInsights() {
             where("date", "<=", Timestamp.fromDate(lastCycle.end))
         );
 
-        const unsubExpenses = onSnapshot(qExpenses, (snap) => {
-            const docs = snap.docs.map(d => ({ ...d.data(), id: d.id }));
-            setCurrentMonthExpenses(docs);
-        });
-
         const unsubLastMonth = onSnapshot(qLastMonth, (snap) => {
             const total = snap.docs.reduce((sum, d) => sum + Number(d.data().amount), 0);
             setLastMonthTotal(total);
+        }, (error) => {
+            console.error("Insights Last Month Error:", error);
         });
 
-        // 2. Fetch Active Budgets for this month (Still using Calendar Month for categorization? Or Cycle?)
-        // CEO Rec: Budgets should probably align with cycle too.
-        // BUT 'month' field in budget buckets is YYYY-MM.
-        // Complex migration. For now, let's keep budget buckets as Calendar Month to avoid breaking everything.
-        // Or better: The budget applies to the cycle that *contains* this month?
-        // Let's stick to Calendar Month for defined Budgets (limits) for now to minimize risk, 
-        // as users usually think of "January Budget" even if they pay from 25th.
+        // C. Fetch Budgets
         const currentMonthStr = getMonthStr(now);
         const qBudgets = query(
             collection(db, "budgets"),
@@ -115,8 +112,8 @@ export function useInsights() {
 
         return () => {
             unsubExpenses();
-            unsubBudgets();
             unsubLastMonth();
+            unsubBudgets();
         };
     }, [user, userProfile]);
 

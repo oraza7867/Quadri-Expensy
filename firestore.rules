@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. User Profile & Nested Collections
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Scars are NESTED in SoulObserver
+      match /scars/{scarId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // FCM Tokens are NESTED
+      match /fcmTokens/{tokenId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // 2. ROOT Collections (Linked by 'uid' field)
+    // The code queries collection(db, "expenses") so we must match /expenses/{id}
+    
+    match /expenses/{expenseId} {
+      // Allow if the document belongs to the user
+      allow read, update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      // Allow create if they allow themselves as owner
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+    }
+    
+    match /reminders/{reminderId} {
+      allow read, update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+    }
+    
+    match /budgets/{budgetId} {
+      allow read, update, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+    }
+  }
+}

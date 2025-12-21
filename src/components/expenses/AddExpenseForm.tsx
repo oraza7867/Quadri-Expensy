@@ -1,3 +1,5 @@
+"use client";
+
 import { useExpenses } from "@/hooks/useExpenses";
 import { useState } from "react";
 import { Calendar, Tag, FileText, IndianRupee } from "lucide-react";
@@ -7,6 +9,10 @@ import { ConscienceModal } from "./ConscienceModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useInsights } from "@/hooks/useInsights";
 import { vibrate } from "@/lib/haptics";
+
+import { ESSENTIAL_CATEGORIES } from "@/lib/soulCopy";
+import { Lock } from "lucide-react";
+import { ApologyModal } from "@/components/modals/ApologyModal";
 
 const CATEGORIES = [
     "Food",
@@ -25,10 +31,11 @@ export function AddExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
     const { totalSpent } = useInsights(); // Fetch spending reality
 
     // Pass Reality to Soul so it returns Effective Score (e.g., 30 if over budget)
-    const { trustScore } = useFinancialSoul([], totalSpent, profile?.monthlyBudget || 0);
+    const { trustScore, wantsDisabled } = useFinancialSoul([], totalSpent, profile?.monthlyBudget || 0);
 
     const [loading, setLoading] = useState(false);
     const [showConscienceModal, setShowConscienceModal] = useState(false);
+    const [showApology, setShowApology] = useState(false);
 
     const [amount, setAmount] = useState("");
     const [category, setCategory] = useState(CATEGORIES[0]);
@@ -46,14 +53,57 @@ export function AddExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
                 note,
                 date: new Date(date),
             });
+
+            // ---------------------------------------------------------
+            // REALITY CHECK (The Fix for Transient Penalties)
+            // ---------------------------------------------------------
+            console.log("🔍 REALITY CHECK START");
+            console.log("💰 Budget:", profile?.monthlyBudget, "Total Spent:", totalSpent, "Added:", amount);
+
+            // ---------------------------------------------------------
+            // UNIVERSAL SYNC (The Real Fix)
+            // ---------------------------------------------------------
+            console.log("🔍 REALITY CHECK START");
+
+            if (profile?.monthlyBudget && profile.monthlyBudget > 0) {
+                // We need to recalculate the "Effective Score" with this NEW expense included.
+                // The `trustScore` from useFinancialSoul is based on CURRENT total (before add).
+                // So we do a quick projection.
+
+                const newTotal = totalSpent + Number(amount);
+                const usageRatio = newTotal / profile.monthlyBudget;
+                let penalty = 0;
+
+                // Sync with useFinancialSoul logic manually for now to be safe
+                if (usageRatio > 1.10) penalty = 65;
+                else if (usageRatio > 1.0) penalty = 25;
+                else if (usageRatio > 0.90) penalty = 10;
+
+                // Effective Score Projection
+                const currentBase = profile.trustScore ?? 80;
+                const projectedScore = Math.max(0, 80 - penalty);
+
+                console.log("📊 Projecting Score:", { currentBase, projectedScore, penalty });
+
+                // CRITICAL RULE: If the Projected Score is lower than Persisted Score,
+                // we MUST persist it to enforce Lockouts/Scars.
+                if (projectedScore < currentBase) {
+                    console.log(`📉 DOMINO EFFECT: Dropping Trust from ${currentBase} to ${projectedScore}`);
+                    await updateProfile({ trustScore: projectedScore });
+                }
+            } else {
+                console.log("❌ NO BUDGET SET - Skipping Reality Check");
+            }
+
             vibrate("success");
             // Reset form
             setAmount("");
             setNote("");
             setShowConscienceModal(false); // Ensure modal is closed
             if (onSuccess) onSuccess();
-        } catch (error) {
-            alert("Failed to add expense");
+        } catch (error: any) {
+            console.error(error);
+            alert(`Failed: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -146,13 +196,27 @@ export function AddExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
                             onChange={(e) => setCategory(e.target.value)}
                             className="block w-full rounded-md border border-gray-300 bg-white pl-10 text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2"
                         >
-                            {CATEGORIES.map((c) => (
-                                <option key={c} value={c}>
-                                    {c}
-                                </option>
-                            ))}
+                            {CATEGORIES.map((c) => {
+                                const isEssential = ESSENTIAL_CATEGORIES.includes(c);
+                                const isDisabled = wantsDisabled && !isEssential;
+                                return (
+                                    <option key={c} value={c} disabled={isDisabled}>
+                                        {isDisabled ? `🔒 ${c} (Locked)` : c}
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
+                    {wantsDisabled && (
+                        <button
+                            type="button"
+                            onClick={() => setShowApology(true)}
+                            className="mt-2 text-xs text-rose-600 font-medium flex items-center gap-1 hover:underline hover:text-rose-800 transition-colors"
+                        >
+                            <Lock className="h-3 w-3" />
+                            Unlock Wants (Submit Apology)
+                        </button>
+                    )}
                 </div>
 
                 {/* Date & Note Row */}
@@ -200,10 +264,12 @@ export function AddExpenseForm({ onSuccess }: { onSuccess?: () => void }) {
                 >
                     {loading ? "Adding..." : "Add Expense"}
                 </button>
-            </form>
+            </form >
+
+            <ApologyModal isOpen={showApology} onClose={() => setShowApology(false)} />
 
             <ConscienceModal
-                isOpen={showConscienceModal}
+                isOpen={showConscienceModal && !wantsDisabled}
                 onClose={() => setShowConscienceModal(false)}
                 onConfirm={handleRiskyConfirm}
                 score={trustScore}

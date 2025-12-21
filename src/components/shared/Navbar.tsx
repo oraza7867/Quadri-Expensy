@@ -1,3 +1,5 @@
+"use client";
+
 import { useAuth } from "@/hooks/useAuth";
 import { LogOut, User as UserIcon } from "lucide-react";
 import Link from "next/link";

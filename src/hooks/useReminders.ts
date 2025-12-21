@@ -14,7 +14,7 @@ import {
     serverTimestamp,
     Timestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getExpensyDb } from "@/lib/firebase";
 import { useAuth } from "./useAuth";
 
 export interface Reminder {
@@ -31,6 +31,7 @@ export interface Reminder {
 }
 
 export function useReminders() {
+    const db = getExpensyDb();
     const { user } = useAuth();
     const [reminders, setReminders] = useState<Reminder[]>([]);
     const [loading, setLoading] = useState(true);

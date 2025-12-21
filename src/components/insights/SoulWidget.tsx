@@ -1,3 +1,4 @@
+import { useScars } from "@/hooks/useScars";
 import { useFinancialSoul } from "@/hooks/useFinancialSoul";
 import { useAuth } from "@/hooks/useAuth";
 import { Settings2, Share2, Ghost, Info } from "lucide-react";
@@ -16,7 +17,8 @@ export function SoulWidget({
     totalSpent?: number;
     budget?: number;
 }) {
-    const { trustScore, state, message, getOrbColor, honestyLevel, ghosts, strikes } = useFinancialSoul(expenses, totalSpent, budget);
+    const { trustScore, state, message, getOrbColor, honestyLevel, ghosts, strikes, userMode } = useFinancialSoul(expenses, totalSpent, budget);
+    const { scars } = useScars(); // Fetch Scars
     const { updateProfile } = useAuth();
     const [showShare, setShowShare] = useState(false);
     const [showTutorial, setShowTutorial] = useState(false);
@@ -28,7 +30,7 @@ export function SoulWidget({
         }
     }, [state]);
 
-    // Redemption Logic
+    // Redemption Logic (Weekly cycle)
     const nextMonday = new Date();
     nextMonday.setDate(nextMonday.getDate() + (1 + 7 - nextMonday.getDay()) % 7);
     const daysLeft = Math.ceil((nextMonday.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
@@ -40,6 +42,9 @@ export function SoulWidget({
         await updateProfile({ honestyLevel: levels[nextIndex] });
     };
 
+    const activeScars = scars.filter(s => s.status === 'active');
+    const healedScars = scars.filter(s => s.status === 'healed');
+
     return (
         <div className="relative overflow-hidden rounded-2xl bg-gray-900 p-6 text-white shadow-xl transition-all duration-500">
             {/* Background Atmosphere */}
@@ -49,6 +54,12 @@ export function SoulWidget({
                 <div>
                     <div className="flex items-center gap-2">
                         <h2 className="text-lg font-semibold text-gray-100">Financial Soul</h2>
+                        {userMode && userMode !== 'standard' && (
+                            <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md ${userMode === 'chill' ? 'bg-blue-900/50 text-blue-200 border border-blue-800' : 'bg-rose-900/50 text-rose-200 border border-rose-800'
+                                }`}>
+                                {userMode}
+                            </span>
+                        )}
                         <button
                             onClick={() => setShowTutorial(true)}
                             className="rounded-full bg-white/10 p-1 text-gray-400 hover:bg-white/20 hover:text-white transition-colors"
@@ -115,6 +126,43 @@ export function SoulWidget({
                             <Ghost size={12} /> {ghost}
                         </span>
                     ))}
+
+                    {/* Active Scars (Bleeding) */}
+                    {activeScars.map(scar => (
+                        <div key={scar.id} className="w-full mt-2 rounded-lg bg-red-950/30 border border-red-900/50 p-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-red-900/20 rounded-full animate-pulse">
+                                    <span className="text-xl">🩸</span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold text-red-200 uppercase tracking-wide">Scar Tissue</p>
+                                    <p className="text-xs text-red-400">{scar.cause}</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-xs font-mono text-red-300">
+                                    {scar.streakCount || 0}/21 Days
+                                </span>
+                                <div className="w-16 h-1 mt-1 bg-gray-800 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-red-500 transition-all duration-500"
+                                        style={{ width: `${Math.min(100, ((scar.streakCount || 0) / 21) * 100)}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Healed Scars (Badges) */}
+                    {healedScars.length > 0 && (
+                        <div className="w-full flex gap-1 mt-1 overflow-x-auto pb-1">
+                            {healedScars.map(scar => (
+                                <span key={scar.id} title={`Survivor: ${scar.cause}`} className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-900/50 border border-amber-700 text-[10px] cursor-help">
+                                    🎖️
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 {/* Redemption Tip (Only if Disappointed) */}

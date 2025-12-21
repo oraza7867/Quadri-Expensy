@@ -1,42 +1,26 @@
-"use client";
-
+import { DevTools } from "@/components/shared/DevTools";
 import { Navbar } from "@/components/shared/Navbar";
-import { BottomNav } from "@/components/shared/BottomNav";
-import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { SoulTutorial } from "@/components/onboarding/SoulTutorial";
+import { MorningBriefing } from "@/components/shared/MorningBriefing";
 
 export default function DashboardLayout({
     children,
 }: {
     children: React.ReactNode;
 }) {
-    const { user, loading } = useAuth();
-    const router = useRouter();
-
-    useEffect(() => {
-        if (!loading && !user) {
-            router.push("/login");
-        }
-    }, [user, loading, router]);
-
-    if (loading) {
-        return <div className="flex h-screen items-center justify-center">Loading...</div>;
-    }
-
-    if (!user) {
-        return null;
-    }
-
+    // Top Navigation Layout
     return (
-        <div className="min-h-screen bg-gray-50">
-            <SoulTutorial />
-            <Navbar />
-            <main className="mx-auto max-w-5xl p-4 sm:px-6 lg:px-8 pb-24 sm:pb-8">
+        <div className="min-h-screen bg-gray-50 flex flex-col">
+            {/* Top Navbar */}
+            <div className="sticky top-0 z-50">
+                <Navbar />
+            </div>
+
+            {/* Main Content Area */}
+            <main className="flex-1 container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
+                <MorningBriefing />
                 {children}
+                <DevTools />
             </main>
-            <BottomNav />
         </div>
     );
 }

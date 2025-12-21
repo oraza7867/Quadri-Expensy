@@ -1,12 +1,14 @@
 "use client";
 
 import { useAuth } from "@/hooks/useAuth";
-import { Trash2, Shield, Download, Calendar } from "lucide-react";
+import { Trash2, Shield, Download, Calendar, Bell } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getCycleRange, formatCycleRange } from "@/lib/dateUtils";
+import { useFcmToken } from "@/hooks/useFcmToken";
 
 export default function SettingsPage() {
     const { user, profile, deleteAccount, updateProfile, loading } = useAuth();
+    const { requestPermission, notificationPermission } = useFcmToken();
     const [deleting, setDeleting] = useState(false);
     const [exporting, setExporting] = useState(false);
 
@@ -30,7 +32,8 @@ export default function SettingsPage() {
         try {
             // Standard imports
             const { collection, query, where, getDocs, orderBy } = await import("firebase/firestore");
-            const { db } = await import("@/lib/firebase");
+            const { getExpensyDb } = await import("@/lib/firebase");
+            const db = getExpensyDb();
 
             const q = query(
                 collection(db, "expenses"),
@@ -40,11 +43,16 @@ export default function SettingsPage() {
             const snapshot = await getDocs(q);
             const data = snapshot.docs.map(d => {
                 const e = d.data();
+                // Safe date handling
+                const dateVal = e.date?.seconds
+                    ? new Date(e.date.seconds * 1000).toLocaleDateString()
+                    : new Date().toLocaleDateString();
+
                 return {
-                    Date: new Date(e.date.seconds * 1000).toLocaleDateString(),
-                    Category: e.category,
-                    Amount: e.amount,
-                    Note: e.note || ""
+                    Date: dateVal,
+                    Category: e.category || "Uncategorized",
+                    Amount: e.amount || 0,
+                    Note: (e.note || "").replace(/"/g, '""') // Escape quotes
                 };
             });
 
@@ -54,22 +62,35 @@ export default function SettingsPage() {
                 return;
             }
 
-            // Generate CSV
-            const headers = Object.keys(data[0]).join(",");
-            const rows = data.map(row => Object.values(row).join(","));
-            const csvContent = "data:text/csv;charset=utf-8," + [headers, ...rows].join("\n");
+            // Generate Robust CSV
+            const headers = ["Date", "Category", "Amount", "Note"];
+            const csvRows = [headers.join(",")];
 
-            const encodedUri = encodeURI(csvContent);
+            for (const row of data) {
+                const values = [
+                    `"${row.Date}"`,
+                    `"${row.Category}"`,
+                    `"${row.Amount}"`,
+                    `"${row.Note}"`
+                ];
+                csvRows.push(values.join(","));
+            }
+
+            const csvString = csvRows.join("\n");
+            // Add BOM for Excel UTF-8 compatibility
+            const blob = new Blob(["\uFEFF" + csvString], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+
             const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "expensy_data.csv");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `expensy_export_${new Date().toISOString().slice(0, 10)}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert("Export Failed");
+            alert("Export Failed: " + error.message);
         } finally {
             setExporting(false);
         }
@@ -149,6 +170,72 @@ export default function SettingsPage() {
                                 <p className="text-xs font-bold text-indigo-800 uppercase">Current Cycle</p>
                                 <p className="font-medium text-indigo-900">{cyclePreview}</p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Discipline Mode Selector */}
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="flex items-start gap-4">
+                    <div className="rounded-full bg-slate-900 p-2">
+                        <Shield className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900">Discipline Protocol</h3>
+                        <p className="mt-1 text-sm text-gray-600">
+                            Choose how strictly Expensy enforces your budget.
+                        </p>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                            {[
+                                { id: "chill", label: "Chill Mode", desc: "No Lockouts. Just tracking." },
+                                { id: "standard", label: "Standard", desc: "Fair warnings. Trust matters." },
+                                { id: "hardcore", label: "Hardcore", desc: "Ruthless consequences." }
+                            ].map((mode) => (
+                                <button
+                                    key={mode.id}
+                                    onClick={() => updateProfile({ mode: mode.id as any })}
+                                    className={`relative flex flex-col items-start rounded-lg border p-3 text-left transition-all ${profile?.mode === mode.id
+                                        ? "border-gray-900 bg-gray-900 text-white ring-2 ring-gray-900 ring-offset-2"
+                                        : "border-gray-200 hover:bg-gray-50"
+                                        }`}
+                                >
+                                    <span className="text-sm font-bold">{mode.label}</span>
+                                    <span className={`text-xs ${profile?.mode === mode.id ? "text-gray-300" : "text-gray-500"}`}>
+                                        {mode.desc}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Notifications */}
+            <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="flex items-start gap-4">
+                    <div className="rounded-full bg-amber-100 p-2">
+                        <Bell className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900">Morning Briefing</h3>
+                        <p className="mt-1 text-sm text-gray-600">
+                            Get the 7:00 AM analysis delivered to your phone.
+                        </p>
+                        <div className="mt-4">
+                            {notificationPermission === 'granted' ? (
+                                <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+                                    Active
+                                </span>
+                            ) : (
+                                <button
+                                    onClick={requestPermission}
+                                    className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                                >
+                                    Enable Notifications
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

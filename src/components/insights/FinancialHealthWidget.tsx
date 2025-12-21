@@ -2,9 +2,10 @@ import { TrendingUp, TrendingDown, Activity } from "lucide-react";
 
 interface FinancialHealthWidgetProps {
     score: number;
+    mode?: 'chill' | 'standard' | 'hardcore';
 }
 
-export function FinancialHealthWidget({ score }: FinancialHealthWidgetProps) {
+export function FinancialHealthWidget({ score, mode = 'standard' }: FinancialHealthWidgetProps) {
     let color = "text-green-600";
     let bgColor = "bg-green-100";
     let barColor = "bg-green-500";
@@ -31,6 +32,12 @@ export function FinancialHealthWidget({ score }: FinancialHealthWidgetProps) {
                 <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <Activity className="h-5 w-5 text-indigo-600" />
                     Financial Health
+                    {mode !== 'standard' && (
+                        <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md ${mode === 'chill' ? 'bg-blue-100 text-blue-700' : 'bg-slate-900 text-white'
+                            }`}>
+                            {mode}
+                        </span>
+                    )}
                 </h2>
                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${bgColor} ${color}`}>
                     {label}

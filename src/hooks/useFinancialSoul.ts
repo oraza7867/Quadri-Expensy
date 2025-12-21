@@ -3,6 +3,7 @@
 import { useAuth } from "./useAuth";
 import { useInsights } from "./useInsights";
 import { SoulState, HonestyLevel, getSoulMessage, getSafeHonestyLevel } from "@/lib/soulCopy";
+import { isAnalyticsLocked, isWantsDisabled, isCoachMode } from "@/lib/soulLogic";
 
 export function useFinancialSoul(expenses: any[] = [], totalSpentProp: number = 0, budgetProp: number = 0) {
     const { profile } = useAuth();
@@ -170,6 +171,17 @@ export function useFinancialSoul(expenses: any[] = [], totalSpentProp: number = 
         }
     };
 
+    // -------------------------------------------
+    // 8. V2 LOGIC (Lockouts & Coach Mode)
+    // -------------------------------------------
+    const isCoach = isCoachMode(profile?.createdAt);
+    const mode = profile?.mode || 'standard';
+
+    // We use the PERSISTED baseScore for lockouts, not the transient displayScore
+    // This prevents UI flickering if context penalties bounce around thresholds
+    const analyticsLocked = isAnalyticsLocked(baseScore, isCoach, mode);
+    const wantsDisabled = isWantsDisabled(baseScore, isCoach, mode);
+
     return {
         trustScore: displayScore, // UI Component will display this as "Trust Score"
         baseScore,
@@ -178,6 +190,11 @@ export function useFinancialSoul(expenses: any[] = [], totalSpentProp: number = 
         getOrbColor,
         honestyLevel,
         ghosts,
-        strikes: profile?.strikes?.count || 0
+        strikes: profile?.strikes?.count || 0,
+        // v2 Flags
+        isCoach,
+        analyticsLocked,
+        wantsDisabled,
+        userMode: mode
     };
 }

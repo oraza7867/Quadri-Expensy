@@ -19,7 +19,7 @@ export const SOUL_COPY: Record<SoulState, Record<HonestyLevel, string>> = {
     }
 };
 
-const ESSENTIAL_CATEGORIES = ["Food", "Health", "Education", "Bills", "Rent", "Groceries", "Transport"];
+export const ESSENTIAL_CATEGORIES = ["Food", "Health", "Education", "Bills", "Rent", "Groceries", "Transport"];
 
 /**
  * Enforces the "Safe Roast" rule.

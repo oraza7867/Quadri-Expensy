@@ -13,7 +13,7 @@ import {
     serverTimestamp,
     Timestamp
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getExpensyDb } from "@/lib/firebase";
 import { useAuth } from "./useAuth";
 
 export interface Expense {
@@ -27,6 +27,7 @@ export interface Expense {
 }
 
 export function useExpenses() {
+    const db = getExpensyDb();
     const { user } = useAuth();
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [loading, setLoading] = useState(true);
@@ -52,12 +53,15 @@ export function useExpenses() {
                     id: doc.id,
                     ...doc.data(),
                 })) as Expense[];
+
                 setExpenses(docs);
+                setError(null);
                 setLoading(false);
             },
             (err) => {
                 console.error("Fetch Expenses Error:", err);
-                setError("Failed to load expenses.");
+                // Even with client-sort, if permissions fail, we catch it here.
+                setError("Failed to load expenses. (Check Rules)");
                 setLoading(false);
             }
         );

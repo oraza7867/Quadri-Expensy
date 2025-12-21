@@ -20,7 +20,9 @@ export function ExpenseList() {
         );
     }
 
-    if (error) {
+    // If we have an error BUT we also have compiled expenses (from cache), show data + soft error
+    // If we have an error and NO data, show blocking error
+    if (error && expenses.length === 0) {
         return (
             <div className="flex items-center justify-center rounded-lg bg-red-50 p-4 text-red-600">
                 <AlertCircle className="mr-2 h-5 w-5" />
@@ -67,6 +69,16 @@ export function ExpenseList() {
 
     return (
         <div className="space-y-4">
+            {/* Sync Warning if Data + Error */}
+            {error && expenses.length > 0 && (
+                <div className="flex items-center justify-between rounded-lg bg-amber-50 p-2 px-3 text-xs text-amber-700">
+                    <span className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4" />
+                        Using offline data. Check connection/rules.
+                    </span>
+                </div>
+            )}
+
             {/* Filters */}
             <div className="flex flex-wrap gap-2 pb-2">
                 <select

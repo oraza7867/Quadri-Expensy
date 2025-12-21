@@ -9,25 +9,8 @@ import {
     signOut as firebaseSignOut
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-
-interface UserProfile {
-    uid: string;
-    email: string | null;
-    displayName: string | null;
-    photoURL: string | null;
-    isPremium: boolean;
-    currency: string;
-    monthlyBudget?: number;
-    trustScore: number; // 0-100 (Base Memory)
-    honestyLevel: 'gentle' | 'balanced' | 'roast';
-    strikes: {
-        count: number;
-        lastReset: string; // ISO Date String
-    };
-    budgetResetDay?: number; // 1-31, default 1
-    createdAt: any;
-}
+import { getExpensyAuth, getExpensyDb } from "@/lib/firebase";
+import { UserProfile } from "@/lib/types";
 
 interface AuthContextType {
     user: User | null;
@@ -45,6 +28,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // Lazy Init for Safety
+    const auth = getExpensyAuth();
+    const db = getExpensyDb();
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -87,6 +74,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                             }, { merge: true });
                         }
                     }
+
+                    // v2 Migration Check: Ensure new fields exist
+                    if (!userData.mode) userData.mode = 'standard';
+                    if (!userData.moralContract) userData.moralContract = null;
+
                     setProfile(userData);
                 } else {
                     console.log("No profile found in Firestore for this user.");
@@ -99,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [auth, db]);
 
     const loginWithGoogle = async () => {
         try {
@@ -127,6 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         lastReset: new Date().toISOString()
                     },
                     budgetResetDay: 1,
+                    // v2 Fields
+                    mode: 'standard',
+                    moralContract: null,
                     createdAt: serverTimestamp(),
                 };
                 await setDoc(docRef, newProfile);
@@ -149,11 +144,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const deleteAccount = async () => {
         if (!auth.currentUser) return;
         try {
-            await setDoc(doc(db, "users", auth.currentUser.uid), {
-                deleted: true,
-                deletedAt: serverTimestamp()
-            }, { merge: true });
+            console.log("Initiating Secure Wipeout...");
+            const token = await auth.currentUser.getIdToken();
 
+            // 1. Call Secure Wipeout API
+            const response = await fetch("/api/auth/delete-data", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken: token }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || "Wipeout failed");
+            }
+
+            console.log("Zombie Data destroyed. Deleting Auth...");
+
+            // 2. Delete Auth User
             await auth.currentUser.delete();
             setUser(null);
             setProfile(null);
@@ -191,7 +199,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     honestyLevel: 'balanced',
                     strikes: { count: 0, lastReset: new Date().toISOString() },
                     budgetResetDay: 1,
-                    createdAt: new Date(), // approximations for UI safety
+                    createdAt: new Date(),
+                    mode: 'standard',
+                    moralContract: null,
                     ...data
                 } as UserProfile;
             });
